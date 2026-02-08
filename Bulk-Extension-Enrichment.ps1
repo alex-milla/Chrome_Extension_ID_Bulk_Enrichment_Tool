@@ -58,44 +58,50 @@ foreach ($id in $extensionIds) {
     $id = $id.Trim()
     $counter++
     
+    # Initialize default values for all fields
+    $extensionName = ""
+    $status = ""
+    $chromeStoreUrl = "https://chrome.google.com/webstore/detail/$id"
+    
     try {
-        $chromeUrl = "https://chrome.google.com/webstore/detail/$id"
-        $response = Invoke-WebRequest -Uri $chromeUrl -UseBasicParsing -ErrorAction SilentlyContinue -TimeoutSec 10
+        $response = Invoke-WebRequest -Uri $chromeStoreUrl -UseBasicParsing -ErrorAction SilentlyContinue -TimeoutSec 10
         
         if ($response.StatusCode -eq 200 -and $response.Content -notmatch 'ItemNotFound') {
             # Extract extension title
             if ($response.Content -match '<title>(.*?)</title>') {
-                $title = $matches[1] -replace ' - Chrome Web Store', '' -replace ' - Chrome ウェブストア', ''
+                $extensionName = $matches[1] -replace ' - Chrome Web Store', '' -replace ' - Chrome ウェブストア', ''
                 $status = "Active"
             } else {
-                $title = 'Unknown'
+                $extensionName = 'Unknown'
                 $status = "Unknown"
             }
         } else {
-            $title = 'Removed/NotFound'
+            $extensionName = 'Removed/NotFound'
             $status = "Removed"
         }
     } catch {
-        $title = 'Error/Unavailable'
+        $extensionName = 'Error/Unavailable'
         $status = "Error"
     }
     
+    # Always create object with all 4 columns
     $results += [PSCustomObject]@{
         ExtensionID = $id
-        ExtensionName = $title
+        ExtensionName = $extensionName
         Status = $status
+        ChromeStoreURL = $chromeStoreUrl
     }
     
     # Show progress
     $percentage = [math]::Round(($counter / $extensionIds.Count) * 100, 2)
-    Write-Host "[$counter/$($extensionIds.Count)] ($percentage%) - $id - $title" -ForegroundColor $(if ($status -eq "Active") { "Green" } elseif ($status -eq "Removed") { "Red" } else { "Yellow" })
+    Write-Host "[$counter/$($extensionIds.Count)] ($percentage%) - $id - $extensionName" -ForegroundColor $(if ($status -eq "Active") { "Green" } elseif ($status -eq "Removed") { "Red" } else { "Yellow" })
     
     # Rate limiting to avoid blocks
     Start-Sleep -Milliseconds 500
 }
 
-# Export results
-$results | Export-Csv -Path $outputPath -NoTypeInformation -Encoding UTF8
+# Export results with explicit column order
+$results | Select-Object ExtensionID, ExtensionName, Status, ChromeStoreURL | Export-Csv -Path $outputPath -NoTypeInformation -Encoding UTF8
 
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Cyan
